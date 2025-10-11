@@ -2,74 +2,60 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
 	"net/http"
+	"strings"
 )
 
 // check if json body is 140char or less
 func validateChirp(w http.ResponseWriter, r *http.Request) {
 
-	type chirpBody struct {
+	type parameters struct {
 		Body string `json:"body"`
 	}
 
-	type badRequest struct {
-		Error string `json:"error"`
+	type respone struct {
+		CleanedBody string `json:"cleaned_body"`
 	}
-
-	type successfulRequest struct {
-		Valid bool `json:"valid"`
-	}
+	// type returnVals struct {
+	// 	Valid bool `json:"valid"`
+	// }
 
 	decoder := json.NewDecoder(r.Body)
-	chirp := chirpBody{}
-	err := decoder.Decode(&chirp)
+	params := parameters{}
+	err := decoder.Decode(&params)
 	if err != nil {
-		badReq := badRequest{
-			Error: fmt.Sprintf("%v", err),
-		}
-		dat, err := json.Marshal(badReq)
-		if err != nil {
-			log.Printf("Error marshalling json: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400)
-		w.Write(dat)
+		respondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
 		return
 	}
 
-	if len(chirp.Body) > 140 {
-		log.Println("Chirp is too long! Length:", len(chirp.Body))
-		badReq := badRequest{
-			Error: "Chirp is too long",
-		}
-		dat, err := json.Marshal(badReq)
-		if err != nil {
-			log.Printf("Error marshalling json: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400)
-		w.Write(dat)
+	const chirpLength = 140
+	if len(params.Body) > chirpLength {
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
 		return
-	} else {
-		succResp := successfulRequest{
-			Valid: true,
-		}
-		dat, err := json.Marshal(succResp)
-		if err != nil {
-			log.Printf("Error marshalling json: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		w.Write(dat)
 	}
+
+	cleanedWords := wordFilter(params.Body)
+
+	respondWithJSON(w, http.StatusOK, respone{
+		CleanedBody: cleanedWords,
+	})
+
+}
+
+func wordFilter(s string) string {
+	invalidWords := map[string]bool{
+		"kerfuffle": true,
+		"sharbert":  true,
+		"fornax":    true,
+	}
+
+	wordList := strings.Split(s, " ")
+	for i, word := range wordList {
+		if invalidWords[strings.ToLower(word)] {
+			wordList[i] = "****"
+		}
+	}
+
+	return strings.Join(wordList, " ")
 
 }
