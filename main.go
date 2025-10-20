@@ -16,6 +16,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	database       *database.Queries
+	platform       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -42,6 +43,11 @@ func main() {
 		log.Fatal("DB_URL environment variable not set")
 	}
 
+	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		log.Fatal("PLATFORM environment variable not set")
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
@@ -58,6 +64,7 @@ func main() {
 	const filepathRoot = "."
 	cfg := apiConfig{
 		database: dbQueries,
+		platform: platform,
 	}
 
 	fileServerHandler := http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))
@@ -71,6 +78,7 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", healthzHandler)
 	mux.HandleFunc("POST /api/validate_chirp", validateChirp)
 
+	mux.HandleFunc("POST /api/users", cfg.CreateNewUser)
 	testServ := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
