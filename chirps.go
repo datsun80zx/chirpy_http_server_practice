@@ -6,19 +6,33 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/auth"
 	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/database"
 	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) CreateNewChirp(w http.ResponseWriter, r *http.Request) {
 
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid jwt", err)
+		return
+	}
+	userID, err := auth.ValidateJWT(token, cfg.tokenString)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "not authorized user", err)
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	chirpParams := database.CreateChirpParams{}
-	err := decoder.Decode(&chirpParams)
+	err = decoder.Decode(&chirpParams)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
 		return
 	}
+
+	chirpParams.UserID = userID
 
 	chirp, ok := validateChirp(chirpParams.Body)
 	if ok {

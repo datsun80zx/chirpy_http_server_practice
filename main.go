@@ -17,6 +17,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	database       *database.Queries
 	platform       string
+	tokenString    string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -48,6 +49,11 @@ func main() {
 		log.Fatal("PLATFORM environment variable not set")
 	}
 
+	tokenString := os.Getenv("TOKEN_STRING")
+	if platform == "" {
+		log.Fatal("TOKEN_STRING env var not set")
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
@@ -62,9 +68,11 @@ func main() {
 
 	const port = "8080"
 	const filepathRoot = "."
+
 	cfg := apiConfig{
-		database: dbQueries,
-		platform: platform,
+		database:    dbQueries,
+		platform:    platform,
+		tokenString: tokenString,
 	}
 
 	fileServerHandler := http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))

@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/auth"
 	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/database"
+	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) CreateNewUser(w http.ResponseWriter, r *http.Request) {
@@ -14,7 +16,10 @@ func (cfg *apiConfig) CreateNewUser(w http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 	}
 	type response struct {
-		database.User
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -38,11 +43,9 @@ func (cfg *apiConfig) CreateNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondWithJSON(w, http.StatusCreated, response{
-		User: database.User{
-			ID:        user.ID,
-			Email:     user.Email,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
-		},
+		ID:        user.ID,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
 	})
 }
