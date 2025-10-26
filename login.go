@@ -2,27 +2,27 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/auth"
+	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/database"
 	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) Login(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Password  string `json:"password"`
-		Email     string `json:"email"`
-		ExpiresAt int    `json:"expires_in_seconds"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	type response struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-		Token     string    `json:"token"`
+		ID           uuid.UUID `json:"id"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+		Email        string    `json:"email"`
+		Token        string    `json:"token"`
+		RefreshToken string    `json:"refresh_token"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -45,38 +45,34 @@ func (cfg *apiConfig) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isValid {
-		var expiresIn time.Duration
-		if params.ExpiresAt == 0 || params.ExpiresAt > 3600 {
-			expiresIn, err = time.ParseDuration("1h")
-			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, "problem parsing expirary", err)
-				return
-			}
-		} else {
-			expiresIn, err = time.ParseDuration(fmt.Sprintf("%vs", params.ExpiresAt))
-			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, "problem parsing expirary", err)
-				return
-			}
-		}
-
-		token, err := auth.MakeJWT(user.ID, cfg.tokenString, expiresIn)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "problem creating token", err)
-			return
-		}
-
-		respondWithJSON(w, http.StatusOK, response{
-			ID:        user.ID,
-			Email:     user.Email,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
-			Token:     token,
-		})
-	} else {
+	if !isValid {
 		respondWithError(w, http.StatusUnauthorized, "incorrect email or password", err)
 		return
 	}
 
+	token, err := auth.MakeJWT(user.ID, cfg.tokenString, time.Hour)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "problem creating token", err)
+		return
+	}
+
+	refreshToken, err := cfg.database.CreateRefreshToken(r.Context(),
+		database.CreateRefreshTokenParams{
+			Token:     auth.MakeRefreshToken(),
+			UserID:    user.ID,
+			ExpiresAt: time.Now().Add(60 * 24 * time.Hour),
+		})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "problem creating refresh token", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, response{
+		ID:           user.ID,
+		Email:        user.Email,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Token:        token,
+		RefreshToken: refreshToken.Token,
+	})
 }
