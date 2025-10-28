@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (cfg *apiConfig) Login(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email    string `json:"email"`
@@ -29,45 +29,45 @@ func (cfg *apiConfig) Login(w http.ResponseWriter, r *http.Request) {
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
+		RespondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
 		return
 	}
 
-	user, err := cfg.database.GetUser(r.Context(), params.Email)
+	user, err := h.Config.Database.GetUser(r.Context(), params.Email)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "incorrect email or password", err)
+		RespondWithError(w, http.StatusUnauthorized, "incorrect email or password", err)
 		return
 	}
 
 	isValid, err := auth.CheckPasswordHash(params.Password, user.HashedPassword)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "couldn't validate info", err)
+		RespondWithError(w, http.StatusBadRequest, "couldn't validate info", err)
 		return
 	}
 
 	if !isValid {
-		respondWithError(w, http.StatusUnauthorized, "incorrect email or password", err)
+		RespondWithError(w, http.StatusUnauthorized, "incorrect email or password", err)
 		return
 	}
 
-	token, err := auth.MakeJWT(user.ID, cfg.tokenString, time.Hour)
+	token, err := auth.MakeJWT(user.ID, h.Config.TokenString, time.Hour)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "problem creating token", err)
+		RespondWithError(w, http.StatusInternalServerError, "problem creating token", err)
 		return
 	}
 
-	refreshToken, err := cfg.database.CreateRefreshToken(r.Context(),
+	refreshToken, err := h.Config.Database.CreateRefreshToken(r.Context(),
 		database.CreateRefreshTokenParams{
 			Token:     auth.MakeRefreshToken(),
 			UserID:    user.ID,
 			ExpiresAt: time.Now().Add(60 * 24 * time.Hour),
 		})
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "problem creating refresh token", err)
+		RespondWithError(w, http.StatusInternalServerError, "problem creating refresh token", err)
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, response{
+	RespondWithJSON(w, http.StatusOK, response{
 		ID:           user.ID,
 		Email:        user.Email,
 		CreatedAt:    user.CreatedAt,

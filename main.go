@@ -2,36 +2,16 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"sync/atomic"
 
+	"github.com/datsun80zx/chirpy_http_server_practice.git/internal"
+	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/api"
 	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/database"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
-
-type apiConfig struct {
-	fileserverHits atomic.Int32
-	database       *database.Queries
-	platform       string
-	tokenString    string
-}
-
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cfg.fileserverHits.Add(1)
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (cfg *apiConfig) getHits(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("<html><body><h1>Welcome, Chirpy Admin</h1><p>Chirpy has been visited %d times!</p></body></html>", cfg.fileserverHits.Load())))
-}
 
 func main() {
 	err := godotenv.Load()
@@ -69,30 +49,32 @@ func main() {
 	const port = "8080"
 	const filepathRoot = "."
 
-	cfg := apiConfig{
-		database:    dbQueries,
-		platform:    platform,
-		tokenString: tokenString,
+	cfg := &internal.ApiConfig{
+		Database:    dbQueries,
+		Platform:    platform,
+		TokenString: tokenString,
 	}
 
 	fileServerHandler := http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))
 
+	apiHandler := api.NewHandler(cfg)
+
 	mux := http.NewServeMux()
-	mux.Handle("/app/", cfg.middlewareMetricsInc(fileServerHandler))
+	mux.Handle("/app/", cfg.MiddlewareMetricsInc(fileServerHandler))
 
-	mux.HandleFunc("GET /admin/metrics", cfg.getHits)
-	mux.HandleFunc("POST /admin/reset", cfg.resetHits)
+	mux.HandleFunc("GET /admin/metrics", cfg.GetHits)
+	mux.HandleFunc("POST /admin/reset", apiHandler.ResetHits)
 
-	mux.HandleFunc("GET /api/healthz", healthzHandler)
+	mux.HandleFunc("GET /api/healthz", apiHandler.HealthzHandler)
 
-	mux.HandleFunc("POST /api/users", cfg.CreateNewUser)
-	mux.HandleFunc("POST /api/login", cfg.Login)
-	mux.HandleFunc("POST /api/refresh", cfg.Refresh)
-	mux.HandleFunc("POST /api/revoke", cfg.Revoke)
+	mux.HandleFunc("POST /api/users", apiHandler.CreateNewUser)
+	mux.HandleFunc("POST /api/login", apiHandler.Login)
+	mux.HandleFunc("POST /api/refresh", apiHandler.Refresh)
+	mux.HandleFunc("POST /api/revoke", apiHandler.Revoke)
 
-	mux.HandleFunc("POST /api/chirps", cfg.CreateNewChirp)
-	mux.HandleFunc("GET /api/chirps", cfg.GetAllChirps)
-	mux.HandleFunc("GET /api/chirps/{chirpID}", cfg.GetOneChirp)
+	mux.HandleFunc("POST /api/chirps", apiHandler.CreateNewChirp)
+	mux.HandleFunc("GET /api/chirps", apiHandler.GetAllChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiHandler.GetOneChirp)
 
 	testServ := &http.Server{
 		Addr:    ":" + port,

@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (cfg *apiConfig) CreateNewUser(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateNewUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email    string `json:"email"`
@@ -26,23 +26,23 @@ func (cfg *apiConfig) CreateNewUser(w http.ResponseWriter, r *http.Request) {
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
+		RespondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
 		return
 	}
 	hashedPswd, err := auth.HashPassword(params.Password)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "couldn't hash password", err)
+		RespondWithError(w, http.StatusInternalServerError, "couldn't hash password", err)
 	}
 
-	user, err := cfg.database.CreateUser(r.Context(), database.CreateUserParams{
+	user, err := h.Config.Database.CreateUser(r.Context(), database.CreateUserParams{
 		Email:          params.Email,
 		HashedPassword: hashedPswd,
 	})
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Couldn't create new user", err)
+		RespondWithError(w, http.StatusBadRequest, "Couldn't create new user", err)
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, response{
+	RespondWithJSON(w, http.StatusCreated, response{
 		ID:        user.ID,
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
