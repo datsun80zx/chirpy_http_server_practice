@@ -107,3 +107,41 @@ func (h *Handler) GetOneChirp(w http.ResponseWriter, r *http.Request) {
 	}
 	RespondWithJSON(w, http.StatusOK, chirp)
 }
+
+func (h *Handler) DeleteOneChirp(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "invalid jwt", err)
+		return
+	}
+	userID, err := auth.ValidateJWT(token, h.Config.TokenString)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "not authorized user", err)
+		return
+	}
+
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid chirp ID", err)
+		return
+	}
+
+	chirp, err := h.Config.Database.GetOneChirp(r.Context(), chirpID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			RespondWithError(w, http.StatusNotFound, "Chirp not found", nil)
+			return
+		}
+		RespondWithError(w, http.StatusInternalServerError, "Database error", err)
+		return
+	}
+
+	if chirp.UserID == userID {
+		h.Config.Database.DeleteOneChirp(r.Context(), database.DeleteOneChirpParams{
+			ID:     chirpID,
+			UserID: userID,
+		})
+		w.WriteHeader(http.StatusNoContent)
+	}
+	RespondWithError(w, http.StatusForbidden, "not authorized", err)
+}
