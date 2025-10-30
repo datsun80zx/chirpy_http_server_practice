@@ -142,6 +142,7 @@ func (h *Handler) DeleteOneChirp(w http.ResponseWriter, r *http.Request) {
 			UserID: userID,
 		})
 		w.WriteHeader(http.StatusNoContent)
+		return
 	}
 	RespondWithError(w, http.StatusForbidden, "not authorized", err)
 }

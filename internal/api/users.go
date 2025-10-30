@@ -106,3 +106,40 @@ func (h *Handler) UpdateUserData(w http.ResponseWriter, r *http.Request) {
 	})
 
 }
+
+func (h *Handler) UpgradeUser(w http.ResponseWriter, r *http.Request) {
+	type eventParameters struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID string `json:"user_id"`
+		} `json:"data"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	event := eventParameters{}
+	err := decoder.Decode(&event)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
+		return
+	}
+	if event.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	userID, err := uuid.Parse(event.Data.UserID)
+	if err != nil {
+		RespondWithError(w, http.StatusBadRequest, "invalid UUID", err)
+		return
+	}
+	if event.Event == "user.upgraded" {
+		user, err := h.Config.Database.UpgradeUserAccount(r.Context(), userID)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
+			return
+		}
+		if !user.IsChirpyRed {
+			RespondWithError(w, http)
+		}
+	}
+
+}
