@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/datsun80zx/chirpy_http_server_practice.git/internal/auth"
@@ -81,14 +82,19 @@ func wordFilter(s string) string {
 }
 
 func (h *Handler) GetAllChirps(w http.ResponseWriter, r *http.Request) {
+	sortOrder := r.URL.Query().Get("sort")
+
 	author := r.URL.Query().Get("author_id")
+
+	var chirps []database.Chirp
+	var err error
 	if author != "" {
 		authorID, err := uuid.Parse(author)
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, "invalid author id", err)
 			return
 		}
-		authorChirps, err := h.Config.Database.GetChirpsByUser(r.Context(), authorID)
+		chirps, err = h.Config.Database.GetChirpsByUser(r.Context(), authorID)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				RespondWithError(w, http.StatusNotFound, "no chirps available", err)
@@ -97,13 +103,17 @@ func (h *Handler) GetAllChirps(w http.ResponseWriter, r *http.Request) {
 			RespondWithError(w, http.StatusNotFound, "no chirps available", err)
 			return
 		}
-		RespondWithJSON(w, http.StatusOK, authorChirps)
-		return
+	} else {
+		chirps, err = h.Config.Database.GetChirps(r.Context())
+		if err != nil {
+			RespondWithError(w, http.StatusBadRequest, "Couldn't create chirp", err)
+			return
+		}
 	}
-	chirps, err := h.Config.Database.GetChirps(r.Context())
-	if err != nil {
-		RespondWithError(w, http.StatusBadRequest, "Couldn't create chirp", err)
-		return
+	if sortOrder == "desc" {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		})
 	}
 	RespondWithJSON(w, http.StatusOK, chirps)
 }
