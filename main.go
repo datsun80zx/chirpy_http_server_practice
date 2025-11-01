@@ -34,6 +34,11 @@ func main() {
 		log.Fatal("TOKEN_STRING env var not set")
 	}
 
+	polkaAPIKey := os.Getenv("POLKA_KEY")
+	if polkaAPIKey == "" {
+		log.Fatal("POLKA_KEY env var not set")
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
@@ -53,6 +58,7 @@ func main() {
 		Database:    dbQueries,
 		Platform:    platform,
 		TokenString: tokenString,
+		PolkaAPIKey: polkaAPIKey,
 	}
 
 	fileServerHandler := http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))

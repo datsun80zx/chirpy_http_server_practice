@@ -114,9 +114,20 @@ func (h *Handler) UpgradeUser(w http.ResponseWriter, r *http.Request) {
 		} `json:"data"`
 	}
 
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "invalid key", err)
+		return
+	}
+
+	if apiKey != h.Config.PolkaAPIKey {
+		RespondWithError(w, http.StatusUnauthorized, "invalid key", err)
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	event := eventParameters{}
-	err := decoder.Decode(&event)
+	err = decoder.Decode(&event)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
 		return
