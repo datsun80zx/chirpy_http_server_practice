@@ -81,6 +81,25 @@ func wordFilter(s string) string {
 }
 
 func (h *Handler) GetAllChirps(w http.ResponseWriter, r *http.Request) {
+	author := r.URL.Query().Get("author_id")
+	if author != "" {
+		authorID, err := uuid.Parse(author)
+		if err != nil {
+			RespondWithError(w, http.StatusBadRequest, "invalid author id", err)
+			return
+		}
+		authorChirps, err := h.Config.Database.GetChirpsByUser(r.Context(), authorID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				RespondWithError(w, http.StatusNotFound, "no chirps available", err)
+				return
+			}
+			RespondWithError(w, http.StatusNotFound, "no chirps available", err)
+			return
+		}
+		RespondWithJSON(w, http.StatusOK, authorChirps)
+		return
+	}
 	chirps, err := h.Config.Database.GetChirps(r.Context())
 	if err != nil {
 		RespondWithError(w, http.StatusBadRequest, "Couldn't create chirp", err)
@@ -142,7 +161,6 @@ func (h *Handler) DeleteOneChirp(w http.ResponseWriter, r *http.Request) {
 			UserID: userID,
 		})
 		w.WriteHeader(http.StatusNoContent)
-		return
 	}
 	RespondWithError(w, http.StatusForbidden, "not authorized", err)
 }
