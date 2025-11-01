@@ -23,6 +23,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		Email        string    `json:"email"`
 		Token        string    `json:"token"`
 		RefreshToken string    `json:"refresh_token"`
+		IsChirpyRed  bool      `json:"is_chirpy_red"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -33,7 +34,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.Config.Database.GetUser(r.Context(), params.Email)
+	user, err := h.Config.Database.GetUserByEmail(r.Context(), params.Email)
 	if err != nil {
 		RespondWithError(w, http.StatusUnauthorized, "incorrect email or password", err)
 		return
@@ -74,5 +75,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:    user.UpdatedAt,
 		Token:        token,
 		RefreshToken: refreshToken.Token,
+		IsChirpyRed:  user.IsChirpyRed.Bool,
 	})
 }

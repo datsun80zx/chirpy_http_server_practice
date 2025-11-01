@@ -72,6 +72,7 @@ func main() {
 	mux.HandleFunc("POST /api/login", apiHandler.Login)
 	mux.HandleFunc("POST /api/refresh", apiHandler.Refresh)
 	mux.HandleFunc("POST /api/revoke", apiHandler.Revoke)
+	mux.HandleFunc("POST /api/polka/webhooks", apiHandler.UpgradeUser)
 
 	mux.HandleFunc("POST /api/chirps", apiHandler.CreateNewChirp)
 	mux.HandleFunc("GET /api/chirps", apiHandler.GetAllChirps)

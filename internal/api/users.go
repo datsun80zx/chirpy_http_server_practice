@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -10,16 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type response struct {
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
+}
+
 func (h *Handler) CreateNewUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email    string `json:"email"`
-	}
-	type response struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -43,10 +46,11 @@ func (h *Handler) CreateNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	RespondWithJSON(w, http.StatusCreated, response{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		ID:          user.ID,
+		Email:       user.Email,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		IsChirpyRed: user.IsChirpyRed.Bool,
 	})
 }
 
@@ -55,12 +59,6 @@ func (h *Handler) UpdateUserData(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email    string `json:"email"`
-	}
-	type response struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
 	}
 
 	token, err := auth.GetBearerToken(r.Header)
@@ -95,14 +93,15 @@ func (h *Handler) UpdateUserData(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.Config.Database.UpdateUserPasswordAndEmail(r.Context(), newParams)
 	if err != nil {
-		RespondWithError(w, http.StatusBadRequest, "Couldn't create new user", err)
+		RespondWithError(w, http.StatusBadRequest, "Couldn't update user", err)
 		return
 	}
 	RespondWithJSON(w, http.StatusOK, response{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		ID:          user.ID,
+		Email:       user.Email,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		IsChirpyRed: user.IsChirpyRed.Bool,
 	})
 
 }
@@ -131,15 +130,21 @@ func (h *Handler) UpgradeUser(w http.ResponseWriter, r *http.Request) {
 		RespondWithError(w, http.StatusBadRequest, "invalid UUID", err)
 		return
 	}
-	if event.Event == "user.upgraded" {
-		user, err := h.Config.Database.UpgradeUserAccount(r.Context(), userID)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, "couldn't decode parameters", err)
+
+	_, err = h.Config.Database.GetUserByID(r.Context(), userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			RespondWithError(w, http.StatusNotFound, "user doesn't exist", err)
 			return
 		}
-		if !user.IsChirpyRed {
-			RespondWithError(w, http)
-		}
+		RespondWithError(w, http.StatusInternalServerError, "database connection error", err)
+		return
 	}
 
+	_, err = h.Config.Database.UpgradeUserAccount(r.Context(), userID)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "couldn't upgrade user", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
